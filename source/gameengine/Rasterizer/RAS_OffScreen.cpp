@@ -213,6 +213,11 @@ unsigned short RAS_OffScreen::GetNumColorSlot() const
 	return m_numColorSlots;
 }
 
+GPUTexture *RAS_OffScreen::GetMainColorTexture()
+{
+	return m_colorSlots[0].m_tex;
+}
+
 GPUTexture *RAS_OffScreen::GetDepthTexture()
 {
 	return m_depthSlot.m_tex;

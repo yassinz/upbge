@@ -115,6 +115,7 @@ public:
 	Type GetType() const;
 	unsigned short GetNumColorSlot() const;
 
+	GPUTexture *GetMainColorTexture();
 	GPUTexture *GetDepthTexture();
 
 	static RAS_OffScreen *GetLastOffScreen();

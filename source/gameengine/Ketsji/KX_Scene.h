@@ -74,6 +74,7 @@ class RAS_IMaterial;
 class RAS_Rasterizer;
 class RAS_OffScreen;
 class RAS_2DFilterManager;
+class RAS_EffectsManager;
 
 struct Scene;
 struct TaskPool;
@@ -230,6 +231,7 @@ private:
 	Scene *m_blenderScene;
 
 	KX_2DFilterManager *m_filterManager;
+	RAS_EffectsManager *m_effectsManager;
 
 	KX_ObstacleSimulation *m_obstacleSimulation;
 
@@ -411,6 +413,8 @@ public:
 	/// 2D Filters.
 	KX_2DFilterManager *Get2DFilterManager() const;
 	RAS_OffScreen *Render2DFilters(RAS_Rasterizer *rasty, RAS_ICanvas *canvas, RAS_OffScreen *inputofs, RAS_OffScreen *targetofs);
+
+	RAS_OffScreen *RenderCompositing(RAS_Rasterizer *rasty, RAS_OffScreen *inputofs);
 
 	KX_ObstacleSimulation *GetObstacleSimulation();
 	void SetObstacleSimulation(KX_ObstacleSimulation *obstacleSimulation);

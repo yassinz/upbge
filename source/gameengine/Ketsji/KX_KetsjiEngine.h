@@ -257,6 +257,9 @@ private:
 	RAS_OffScreen *PostRenderScene(KX_Scene *scene, RAS_OffScreen *inputofs,
 			const KX_FrameRenderSchedule& frameSchedule, bool islastscene);
 
+	RAS_OffScreen *PostCompositingScene(KX_Scene *scene, RAS_OffScreen *inputofs,
+		const KX_FrameRenderSchedule& frameSchedule, bool islastscene);
+
 	void RenderDebugProperties();
 	/// Debug draw cameras frustum of a scene.
 	void DrawDebugCameraFrustum(KX_Scene *scene, const KX_CameraRenderSchedule& cameraSchedule);

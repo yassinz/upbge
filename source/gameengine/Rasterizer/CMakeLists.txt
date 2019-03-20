@@ -70,6 +70,7 @@ set(SRC
 	RAS_DisplayArray.cpp
 	RAS_DisplayArrayBucket.cpp
 	RAS_DisplayArrayStorage.cpp
+	RAS_EffectsManager.cpp
 	RAS_FramingManager.cpp
 	RAS_ICanvas.cpp
 	RAS_InstancingBuffer.cpp
@@ -105,6 +106,7 @@ set(SRC
 	RAS_DisplayArray.h
 	RAS_DisplayArrayBucket.h
 	RAS_DisplayArrayStorage.h
+	RAS_EffectsManager.h
 	RAS_FramingManager.h
 	RAS_ICanvas.h
 	RAS_IMaterial.h

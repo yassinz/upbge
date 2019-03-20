@@ -893,3 +893,24 @@ int GPU_offscreen_color_texture(const GPUOffScreen *ofs)
 	return GPU_texture_opengl_bindcode(ofs->color);
 }
 
+//bge
+
+void GPU_offscreen_attach_color(GPUOffScreen *ofs, GPUTexture *color)
+{
+	ofs->color = color;
+	GPU_framebuffer_texture_attach(ofs->fb, ofs->color, 0, NULL);
+}
+void GPU_offscreen_attach_depth(GPUOffScreen *ofs, GPUTexture *depth)
+{
+	ofs->depth = depth;
+	GPU_framebuffer_texture_attach(ofs->fb, ofs->depth, 0, NULL);
+}
+void GPU_offscreen_detach_color(GPUOffScreen *ofs)
+{
+	GPU_framebuffer_texture_detach(ofs->color);
+}
+void GPU_offscreen_detach_depth(GPUOffScreen *ofs)
+{
+	GPU_framebuffer_texture_detach(ofs->depth);
+}
+

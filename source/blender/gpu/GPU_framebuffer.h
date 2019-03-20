@@ -97,6 +97,12 @@ int GPU_offscreen_width(const GPUOffScreen *ofs);
 int GPU_offscreen_height(const GPUOffScreen *ofs);
 int GPU_offscreen_color_texture(const GPUOffScreen *ofs);
 
+//bge
+void GPU_offscreen_attach_color(GPUOffScreen *ofs, GPUTexture *color);
+void GPU_offscreen_attach_depth(GPUOffScreen *ofs, GPUTexture *depth);
+void GPU_offscreen_detach_color(GPUOffScreen *ofs);
+void GPU_offscreen_detach_depth(GPUOffScreen *ofs);
+
 #ifdef __cplusplus
 }
 #endif

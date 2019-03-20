@@ -670,6 +670,10 @@ void KX_KetsjiEngine::Render()
 			// Render filters and get output off screen.
 			offScreen = PostRenderScene(scene, offScreen, frameSchedule, islastscene);
 			frameSchedule.m_ofsType = offScreen->GetType();
+
+			// temp try to use gpu_compositing in bge
+			offScreen = PostCompositingScene(scene, offScreen, frameSchedule, islastscene);
+			frameSchedule.m_ofsType = offScreen->GetType();
 		}
 	}
 
@@ -898,6 +902,44 @@ RAS_OffScreen *KX_KetsjiEngine::PostRenderScene(KX_Scene *scene, RAS_OffScreen *
 	// Python draw callback can also call debug draw functions, so we have to clear debug shapes.
 	scene->FlushDebugDraw(m_rasterizer, m_canvas);
 #endif
+
+	return offScreen;
+}
+
+RAS_OffScreen *KX_KetsjiEngine::PostCompositingScene(KX_Scene *scene, RAS_OffScreen *inputofs,
+	const KX_FrameRenderSchedule& frameSchedule, bool islastscene)
+{
+	KX_SetActiveScene(scene);
+
+	/* Choose final render off screen target. If the current off screen is using multisamples we
+	 * are sure that it will be copied to a non-multisamples off screen before render the filters.
+	 * In this case the targeted off screen is the same as the current off screen. */
+	RAS_OffScreen::Type target;
+	if (inputofs->GetSamples() > 0) {
+		/* If the last scene is rendered it's useless to specify a multisamples off screen, we use then
+		 * a non-multisamples off screen and avoid an extra off screen blit. */
+		if (islastscene) {
+			target = RAS_OffScreen::NextRenderOffScreen(frameSchedule.m_ofsType);
+		}
+		else {
+			target = frameSchedule.m_ofsType;
+		}
+	}
+	/* In case of non-multisamples a ping pong per scene render is made between a potentially multisamples
+	 * off screen and a non-multisamples off screen as the both doesn't use multisamples. */
+	else {
+		target = RAS_OffScreen::NextRenderOffScreen(frameSchedule.m_ofsType);
+	}
+
+	RAS_OffScreen *targetofs = m_canvas->GetOffScreen(target);
+
+	// We need to first make sure our viewport is correct (enabling multiple viewports can mess this up), only for filters.
+	const int width = m_canvas->GetWidth();
+	const int height = m_canvas->GetHeight();
+	m_rasterizer->SetViewport(0, 0, width, height);
+	m_rasterizer->SetScissor(0, 0, width, height);
+
+	RAS_OffScreen *offScreen = scene->RenderCompositing(m_rasterizer, inputofs);
 
 	return offScreen;
 }

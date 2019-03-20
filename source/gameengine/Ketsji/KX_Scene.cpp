@@ -58,6 +58,7 @@
 #include "RAS_ICanvas.h"
 #include "RAS_2DFilterData.h"
 #include "KX_2DFilterManager.h"
+#include "RAS_EffectsManager.h"
 #include "RAS_BoundingBoxManager.h"
 #include "RAS_BucketManager.h"
 #include "RAS_Deformer.h"
@@ -152,6 +153,9 @@ KX_Scene::KX_Scene(SCA_IInputDevice *inputDevice,
 
 	m_animationPool = BLI_task_pool_create(KX_GetActiveEngine()->GetTaskScheduler(), &m_animationPoolData);
 
+	RAS_ICanvas *canvas = KX_GetActiveEngine()->GetCanvas();
+	m_effectsManager = new RAS_EffectsManager(canvas, this);
+
 #ifdef WITH_PYTHON
 	m_attrDict = nullptr;
 	m_removeCallbacks = nullptr;
@@ -200,12 +204,16 @@ KX_Scene::~KX_Scene()
 		m_fontlist->Release();
 	}
 
+	if (m_logicmgr) {
+		delete m_logicmgr;
+	}
+
 	if (m_filterManager) {
 		delete m_filterManager;
 	}
 
-	if (m_logicmgr) {
-		delete m_logicmgr;
+	if (m_effectsManager) {
+		delete m_effectsManager;
 	}
 
 	if (m_physicsEnvironment) {
@@ -1646,6 +1654,11 @@ KX_2DFilterManager *KX_Scene::Get2DFilterManager() const
 RAS_OffScreen *KX_Scene::Render2DFilters(RAS_Rasterizer *rasty, RAS_ICanvas *canvas, RAS_OffScreen *inputofs, RAS_OffScreen *targetofs)
 {
 	return m_filterManager->RenderFilters(rasty, canvas, inputofs, targetofs);
+}
+
+RAS_OffScreen *KX_Scene::RenderCompositing(RAS_Rasterizer *rasty, RAS_OffScreen *inputofs)
+{
+	return m_effectsManager->RenderEffects(rasty, inputofs);
 }
 
 KX_ObstacleSimulation *KX_Scene::GetObstacleSimulation()
