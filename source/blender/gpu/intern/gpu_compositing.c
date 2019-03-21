@@ -1286,7 +1286,7 @@ void GPU_fx_compositor_init_dof_settings(GPUDOFSettings *fx_dof)
 
 void GPU_fx_compositor_init_ssao_settings(GPUSSAOSettings *fx_ssao)
 {
-	fx_ssao->factor = 1.0f;
+	fx_ssao->factor = 10.0f;
 	fx_ssao->distance_max = 0.2f;
 	fx_ssao->attenuation = 1.0f;
 	fx_ssao->samples = 20;
