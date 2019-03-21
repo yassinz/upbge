@@ -72,7 +72,7 @@ RAS_EffectsManager::~RAS_EffectsManager()
 
 RAS_OffScreen *RAS_EffectsManager::RenderEffects(RAS_Rasterizer *rasty, RAS_OffScreen *inputofs)
 {
-	rasty->Disable(RAS_Rasterizer::RAS_DEPTH_TEST);
+	//rasty->Disable(RAS_Rasterizer::RAS_DEPTH_TEST);
 
 	/* try only AO for now  */
 	if (1) {
@@ -88,10 +88,13 @@ RAS_OffScreen *RAS_EffectsManager::RenderEffects(RAS_Rasterizer *rasty, RAS_OffS
 		GPU_offscreen_detach_color(m_offScreen);
 		GPU_offscreen_detach_depth(m_offScreen);
 
+		rasty->SetViewport(m_rect.xmin, m_rect.ymin, m_rect.xmax, m_rect.ymax);
+		rasty->SetScissor(m_rect.xmin, m_rect.ymin, m_rect.xmax, m_rect.ymax);
+
 		return inputofs;
 	}
 
-	rasty->Enable(RAS_Rasterizer::RAS_DEPTH_TEST);
+	//rasty->Enable(RAS_Rasterizer::RAS_DEPTH_TEST);
 
 	return inputofs;
 }
