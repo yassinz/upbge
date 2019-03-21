@@ -51,6 +51,8 @@ RAS_EffectsManager::RAS_EffectsManager(RAS_ICanvas *canvas, KX_Scene *scene):
 	m_rect.ymax = viewport[3];
 
 	GPU_fx_compositor_init_ssao_settings(&m_ssaoSettings);
+	float col[3] = { 0.0f, 0.0f, 0.0f };
+	copy_v3_v3(m_ssaoSettings.color, col);
 	// TODO same for DOF;
 
 	m_compositorSettings.ssao = &m_ssaoSettings;
