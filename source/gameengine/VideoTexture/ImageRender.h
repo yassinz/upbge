@@ -92,6 +92,8 @@ protected:
 	KX_Scene * m_scene;
 	/// camera for render
 	KX_Camera * m_camera;
+	/// do we own the camera?
+	bool m_owncamera;
 
 	// Number of samples used in FBO.
 	int m_samples;
