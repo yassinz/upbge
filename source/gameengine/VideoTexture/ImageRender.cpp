@@ -255,7 +255,7 @@ bool ImageRender::Render()
 			mirrorWorldX[1], mirrorWorldY[1], mirrorWorldZ[1],
 			mirrorWorldX[2], mirrorWorldY[2], mirrorWorldZ[2]);
 
-		camtrans = mt::mat3x4(cameraWorldOri, cameraWorldPos).Inverse();
+		camtrans = mt::mat3x4(cameraWorldOri, cameraWorldPos);
 		// compute camera frustum:
 		//   get position of mirror relative to camera: offset = mirrorPos-cameraPos
 		mt::vec3 mirrorOffset = mirrorWorldPos - cameraWorldPos;
@@ -370,7 +370,7 @@ bool ImageRender::Render()
 
 	m_rasterizer->SetProjectionMatrix(projmat);
 
-	const mt::mat4 viewmat = mt::mat4::FromAffineTransform(camtrans);
+	const mt::mat4 viewmat = mt::mat4::FromAffineTransform(camtrans).Inverse();
 
 	m_rasterizer->SetViewMatrix(viewmat);
 
