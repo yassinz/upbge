@@ -831,7 +831,7 @@ void KX_Scene::RemoveObject(KX_GameObject *gameobj)
 		node->DisconnectFromParent();
 
 		// Recursively destruct.
-		delete node;
+		node->Destruct();
 	}
 }
 

@@ -88,7 +88,7 @@ public:
 
 	SG_Node(SG_Object *object, SG_Scene *scene, SG_Callbacks& callbacks, SG_ParentRelation *relation);
 	SG_Node(const SG_Node& other);
-	~SG_Node();
+	virtual ~SG_Node();
 
 	/**
 	 * Set the parent of this node.
@@ -177,6 +177,8 @@ public:
 	 * Node replication functions.
 	 */
 	SG_Node *GetReplica();
+
+	void Destruct();
 
 	/// Needed for replication
 
