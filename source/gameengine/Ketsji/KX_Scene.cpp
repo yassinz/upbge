@@ -95,11 +95,45 @@
 #include "CM_Message.h"
 #include "CM_List.h"
 
-SG_Callbacks KX_Scene::m_callbacks = SG_Callbacks(KX_GameObject::UpdateTransformFunc);
+static void *KX_SceneReplicationFunc(SG_Node *node, void *gameobj, void *scene)
+{
+	KX_GameObject *replica = ((KX_Scene *)scene)->AddNodeReplicaObject(node, (KX_GameObject *)gameobj);
+
+	if (replica) {
+		replica->Release();
+	}
+
+	return (void *)replica;
+}
+
+static void *KX_SceneDestructionFunc(SG_Node *node, void *gameobj, void *scene)
+{
+	((KX_Scene *)scene)->RemoveNodeDestructObject((KX_GameObject *)gameobj);
+
+	return nullptr;
+}
+
+bool KX_Scene::KX_ScenegraphUpdateFunc(SG_Node *node, void *gameobj, void *scene)
+{
+	return node->Schedule(((KX_Scene *)scene)->m_sghead);
+}
+
+bool KX_Scene::KX_ScenegraphRescheduleFunc(SG_Node *node, void *gameobj, void *scene)
+{
+	return node->Reschedule(((KX_Scene *)scene)->m_sghead);
+}
+
+SG_Callbacks KX_Scene::m_callbacks = SG_Callbacks(
+	KX_SceneReplicationFunc,
+	KX_SceneDestructionFunc,
+	KX_GameObject::UpdateTransformFunc,
+	KX_Scene::KX_ScenegraphUpdateFunc,
+	KX_Scene::KX_ScenegraphRescheduleFunc);
 
 KX_Scene::KX_Scene(SCA_IInputDevice *inputDevice,
                    const std::string& sceneName,
                    Scene *scene,
+                   RAS_ICanvas *canvas,
                    KX_NetworkMessageManager *messageManager) :
 	m_keyboardmgr(nullptr),
 	m_mousemgr(nullptr),
@@ -120,6 +154,7 @@ KX_Scene::KX_Scene(SCA_IInputDevice *inputDevice,
 {
 
 	m_objectlist = new EXP_ListValue<KX_GameObject>();
+	m_parentlist = new EXP_ListValue<KX_GameObject>();
 	m_lightlist = new EXP_ListValue<KX_LightObject>();
 	m_inactivelist = new EXP_ListValue<KX_GameObject>();
 	m_cameralist = new EXP_ListValue<KX_Camera>();
@@ -170,7 +205,10 @@ KX_Scene::~KX_Scene()
 	 */
 	RemoveAllDebugProperties();
 
-	DestructRootNodes();
+	while (GetRootParentList()->GetCount() > 0) {
+		KX_GameObject *parentobj = GetRootParentList()->GetValue(0);
+		this->RemoveObject(parentobj);
+	}
 
 	if (m_obstacleSimulation) {
 		delete m_obstacleSimulation;
@@ -182,6 +220,10 @@ KX_Scene::~KX_Scene()
 
 	if (m_objectlist) {
 		m_objectlist->Release();
+	}
+
+	if (m_parentlist) {
+		m_parentlist->Release();
 	}
 
 	if (m_inactivelist) {
@@ -274,6 +316,11 @@ RAS_BoundingBoxManager *KX_Scene::GetBoundingBoxManager() const
 EXP_ListValue<KX_GameObject> *KX_Scene::GetObjectList() const
 {
 	return m_objectlist;
+}
+
+EXP_ListValue<KX_GameObject> *KX_Scene::GetRootParentList() const
+{
+	return m_parentlist;
 }
 
 EXP_ListValue<KX_GameObject> *KX_Scene::GetInactiveList() const
@@ -389,19 +436,8 @@ void KX_Scene::AddObjectDebugProperties(KX_GameObject *gameobj)
 	}
 }
 
-SG_Object *KX_Scene::ReplicateNodeObject(SG_Node *node, SG_Object *origObject)
+void KX_Scene::RemoveNodeDestructObject(KX_GameObject *gameobj)
 {
-	KX_GameObject *replica = AddNodeReplicaObject(node, static_cast<KX_GameObject *>(origObject));
-	if (replica) {
-		replica->Release();
-	}
-
-	return replica;
-}
-
-void KX_Scene::DestructNodeObject(SG_Node *node, SG_Object *object)
-{
-	KX_GameObject *gameobj = static_cast<KX_GameObject *>(object);
 	if (NewRemoveObject(gameobj)) {
 		/* Object is not yet deleted because a reference is hanging somewhere.
 		 * This should not happen anymore since we use proxy object for Python. */
@@ -430,7 +466,26 @@ KX_GameObject *KX_Scene::AddNodeReplicaObject(SG_Node *node, KX_GameObject *game
 		}
 	}
 
-	newobj->SetNode(node);
+	if (node) {
+		newobj->SetNode(node);
+	}
+	else {
+		SG_Node *rootnode = new SG_Node(newobj, this, KX_Scene::m_callbacks);
+
+		// This fixes part of the scaling-added object bug.
+		SG_Node *orgnode = gameobj->GetNode();
+		rootnode->SetLocalScale(orgnode->GetLocalScale());
+		rootnode->SetLocalPosition(orgnode->GetLocalPosition());
+		rootnode->SetLocalOrientation(orgnode->GetLocalOrientation());
+
+		// Define the relationship between this node and it's parent.
+		KX_NormalParentRelation *parent_relation = new KX_NormalParentRelation();
+		rootnode->SetParentRelation(parent_relation);
+
+		newobj->SetNode(rootnode);
+	}
+
+	SG_Node *replicanode = newobj->GetNode();
 
 	// Add the object in the obstacle simulation if needed.
 	if (m_obstacleSimulation && gameobj->GetBlenderObject()->gameflag & OB_HASOBSTACLE) {
@@ -445,6 +500,8 @@ KX_GameObject *KX_Scene::AddNodeReplicaObject(SG_Node *node, KX_GameObject *game
 	if (gameobj->GetComponents()) {
 		m_componentManager.RegisterObject(newobj);
 	}
+
+	replicanode->SetClientObject(newobj);
 
 	// This is the list of object that are send to the graphics pipeline.
 	m_objectlist->Add(CM_AddRef(newobj));
@@ -654,10 +711,20 @@ void KX_Scene::DupliGroupRecurse(KX_GameObject *groupobj, int level)
 			 */
 			continue;
 		}
+		KX_GameObject *replica = AddNodeReplicaObject(nullptr, gameobj);
+		// Add to 'rootparent' list (this is the list of top hierarchy objects, updated each frame).
+		m_parentlist->Add(CM_AddRef(replica));
 
-		SG_Node *replicaNode = gameobj->GetNode()->GetReplica();
-		KX_GameObject *replica = static_cast<KX_GameObject *>(replicaNode->GetObject());
+		// Recurse replication into children nodes.
+		const NodeList& children = gameobj->GetNode()->GetChildren();
 
+		replica->GetNode()->ClearSGChildren();
+		for (SG_Node *orgnode : children) {
+			SG_Node *childreplicanode = orgnode->GetReplica();
+			if (childreplicanode) {
+				replica->GetNode()->AddChild(childreplicanode);
+			}
+		}
 		/* Don't replicate logic now: we assume that the objects in the group can have
 		 * logic relationship, even outside parent relationship
 		 * In order to match 3D view, the position of groupobj is used as a
@@ -681,6 +748,9 @@ void KX_Scene::DupliGroupRecurse(KX_GameObject *groupobj, int level)
 		replica->GetNode()->UpdateWorldData();
 		// We can now add the graphic controller to the physic engine.
 		replica->ActivateGraphicController(true);
+
+		// Done with replica.
+		replica->Release();
 	}
 
 	// Do the linking of member objects to group object for every objects.
@@ -744,9 +814,7 @@ KX_GameObject *KX_Scene::AddReplicaObject(KX_GameObject *originalobj, KX_GameObj
 	m_ueberExecutionPriority++;
 
 	// Lets create a replica.
-
-	SG_Node *replicaNode = originalobj->GetNode()->GetReplica();
-	KX_GameObject *replica = static_cast<KX_GameObject *>(replicaNode->GetObject());
+	KX_GameObject *replica = AddNodeReplicaObject(nullptr, originalobj);
 
 	/* Add a timebomb to this object
 	 * lifespan of zero means 'this object lives forever'. */
@@ -758,6 +826,21 @@ KX_GameObject *KX_Scene::AddReplicaObject(KX_GameObject *originalobj, KX_GameObj
 		EXP_Value *fval = new EXP_FloatValue(lifespan * 0.02f);
 		replica->SetProperty("::timebomb", fval);
 		fval->Release();
+	}
+
+	// Add to 'rootparent' list (this is the list of top hierarchy objects, updated each frame).
+	m_parentlist->Add(CM_AddRef(replica));
+
+	// Recurse replication into children nodes.
+
+	const NodeList& children = originalobj->GetNode()->GetChildren();
+
+	replica->GetNode()->ClearSGChildren();
+	for (SG_Node *orgnode : children) {
+		SG_Node *childreplicanode = orgnode->GetReplica();
+		if (childreplicanode) {
+			replica->GetNode()->AddChild(childreplicanode);
+		}
 	}
 
 	if (referenceobj) {
@@ -819,6 +902,7 @@ KX_GameObject *KX_Scene::AddReplicaObject(KX_GameObject *originalobj, KX_GameObj
 		DupliGroupRecurse(gameobj, 0);
 	}
 
+	// Don't release replica here because we are returning it, not done with it...
 	return replica;
 }
 
@@ -944,6 +1028,9 @@ bool KX_Scene::NewRemoveObject(KX_GameObject *gameobj)
 	if (m_objectlist->RemoveValue(gameobj)) {
 		ret = (gameobj->Release() != nullptr);
 	}
+	if (m_parentlist->RemoveValue(gameobj)) {
+		ret = (gameobj->Release() != nullptr);
+	}
 	if (m_inactivelist->RemoveValue(gameobj)) {
 		ret = (gameobj->Release() != nullptr);
 	}
@@ -1009,7 +1096,7 @@ void KX_Scene::PhysicsCullingCallback(KX_ClientObjectInfo *objectInfo, void *cul
 	}
 
 	// Make object visible.
-	gameobj->SetCulled(false);
+	gameobj->GetCullingNode().SetCulled(false);
 	info->m_objects.push_back(gameobj);
 }
 
@@ -1023,7 +1110,7 @@ std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(bool frustumCullin
 	std::vector<KX_GameObject *> objects;
 	if (!frustumCulling) {
 		for (KX_GameObject *gameobj : m_objectlist) {
-			gameobj->SetCulled(false);
+			gameobj->GetCullingNode().SetCulled(false);
 			objects.push_back(gameobj);
 		}
 		return objects;
@@ -1043,7 +1130,7 @@ std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(const SG_Frustum& 
 			/* Reset KX_GameObject m_culled to true before doing culling
 			 * since DBVT culling will only set it to false.
 			 */
-			gameobj->SetCulled(true);
+			gameobj->GetCullingNode().SetCulled(true);
 			// Update the object bounding volume box.
 			gameobj->UpdateBounds(false);
 		}
@@ -1080,7 +1167,7 @@ void KX_Scene::DrawDebug(const std::vector<KX_GameObject *>& objects,
 			const mt::vec3& scale = gameobj->NodeGetWorldScaling();
 			const mt::vec3& position = gameobj->NodeGetWorldPosition();
 			const mt::mat3& orientation = gameobj->NodeGetWorldOrientation();
-			const SG_BBox& box = gameobj->GetAabb();
+			const SG_BBox& box = gameobj->GetCullingNode().GetAabb();
 			const mt::vec3& center = box.GetCenter();
 
 			m_debugDraw.DrawAabb(position, orientation, box.GetMin() * scale, box.GetMax() * scale,
@@ -1209,7 +1296,7 @@ static void update_anim_thread_func(TaskPool *pool, void *taskdata, int UNUSED(t
 
 		// Check for meshes that haven't been culled
 		for (KX_GameObject *child : children) {
-			if (!child->GetCulled()) {
+			if (!child->GetCullingNode().GetCulled()) {
 				needs_update = true;
 				break;
 			}
@@ -1298,6 +1385,23 @@ void KX_Scene::LogicEndFrame()
 
 	for (KX_FontObject *font : m_fontlist) {
 		font->UpdateTextFromProperty();
+	}
+}
+
+void KX_Scene::UpdateParents()
+{
+	// We use the SG dynamic list
+	SG_Node *node;
+
+	while ((node = SG_Node::GetNextScheduled(m_sghead))) {
+		node->UpdateWorldData();
+	}
+
+	// The list must be empty here
+	BLI_assert(m_sghead.Empty());
+	// Some nodes may be ready for reschedule, move them to schedule list for next time.
+	while ((node = SG_Node::GetNextRescheduled(m_sghead))) {
+		node->Schedule(m_sghead);
 	}
 }
 
@@ -1532,6 +1636,19 @@ static void MergeScene_GameObject(KX_GameObject *gameobj, KX_Scene *to, KX_Scene
 		physicsCtrl->SetPhysicsEnvironment(to->GetPhysicsEnvironment());
 	}
 
+	// SG_Node can hold a scene reference.
+	SG_Node *sg = gameobj->GetNode();
+	if (sg) {
+		if (sg->GetClientInfo() == from) {
+			sg->SetClientInfo(to);
+
+			// Make sure to grab the children too since they might not be tied to a game object.
+			const NodeList& children = sg->GetChildren();
+			for (SG_Node *child : children) {
+				child->SetClientInfo(to);
+			}
+		}
+	}
 	switch (gameobj->GetGameObjectType()) {
 		// If the object is a light, update it's scene.
 		case SCA_IObject::OBJ_LIGHT:
@@ -1617,6 +1734,9 @@ bool KX_Scene::MergeScene(KX_Scene *other)
 
 	m_inactivelist->MergeList(other->GetInactiveList());
 	other->GetInactiveList()->ReleaseAndRemoveAll();
+
+	m_parentlist->MergeList(other->GetRootParentList());
+	other->GetRootParentList()->ReleaseAndRemoveAll();
 
 	m_lightlist->MergeList(other->GetLightList());
 	other->GetLightList()->ReleaseAndRemoveAll();
@@ -2106,8 +2226,11 @@ EXP_PYMETHODDEF_DOC(KX_Scene, addObject,
 		PyErr_Format(PyExc_ValueError, "scene.addObject(object, reference, time): KX_Scene (first argument): object must be in an inactive layer");
 		return nullptr;
 	}
-
 	KX_GameObject *replica = AddReplicaObject(ob, reference, time);
+
+	/* Release here because AddReplicaObject AddRef's
+	 * the object is added to the scene so we don't want python to own a reference. */
+	replica->Release();
 	return replica->GetProxy();
 }
 

@@ -36,10 +36,12 @@
 
 class SG_Familly;
 class SG_Node;
-class SG_Scene;
-class SG_Object;
 
-typedef void (*SG_UpdateTransformCallback)(SG_Node *sgnode, SG_Object *object, SG_Scene *scene);
+typedef void * (*SG_ReplicationNewCallback)(SG_Node *sgnode, void *clientobj, void *clientinfo);
+typedef void * (*SG_DestructionNewCallback)(SG_Node *sgnode, void *clientobj, void *clientinfo);
+typedef void (*SG_UpdateTransformCallback)(SG_Node *sgnode, void *clientobj, void *clientinfo);
+typedef bool (*SG_ScheduleUpdateCallback)(SG_Node *sgnode, void *clientobj, void *clientinfo);
+typedef bool (*SG_RescheduleUpdateCallback)(SG_Node *sgnode, void *clientobj, void *clientinfo);
 
 /**
  * SG_Callbacks hold 2 call backs to the outside world.
@@ -58,16 +60,32 @@ typedef void (*SG_UpdateTransformCallback)(SG_Node *sgnode, SG_Object *object, S
  */
 struct SG_Callbacks {
 	SG_Callbacks()
-		:m_updatefunc(nullptr)
+		:m_replicafunc(nullptr),
+		m_destructionfunc(nullptr),
+		m_updatefunc(nullptr),
+		m_schedulefunc(nullptr),
+		m_reschedulefunc(nullptr)
 	{
 	}
 
-	SG_Callbacks(SG_UpdateTransformCallback updatefunc)
-		:m_updatefunc(updatefunc)
+	SG_Callbacks(SG_ReplicationNewCallback repfunc,
+	             SG_DestructionNewCallback destructfunc,
+	             SG_UpdateTransformCallback updatefunc,
+	             SG_ScheduleUpdateCallback schedulefunc,
+	             SG_RescheduleUpdateCallback reschedulefunc)
+		:m_replicafunc(repfunc),
+		m_destructionfunc(destructfunc),
+		m_updatefunc(updatefunc),
+		m_schedulefunc(schedulefunc),
+		m_reschedulefunc(reschedulefunc)
 	{
 	}
 
+	SG_ReplicationNewCallback m_replicafunc;
+	SG_DestructionNewCallback m_destructionfunc;
 	SG_UpdateTransformCallback m_updatefunc;
+	SG_ScheduleUpdateCallback m_schedulefunc;
+	SG_RescheduleUpdateCallback m_reschedulefunc;
 };
 
 typedef std::vector<SG_Node *> NodeList;
@@ -86,15 +104,25 @@ public:
 		DIRTY_CULLING = (1 << 1)
 	};
 
-	SG_Node(SG_Object *object, SG_Scene *scene, SG_Callbacks& callbacks, SG_ParentRelation *relation);
-	SG_Node(const SG_Node& other);
+	SG_Node(void *clientobj, void *clientinfo, SG_Callbacks& callbacks);
+	SG_Node(const SG_Node & other);
 	virtual ~SG_Node();
 
 	/**
-	 * Set the parent of this node.
+	 * Add a child to this object. This also informs the child of
+	 * it's parent.
+	 * This just stores a pointer to the child and does not
+	 * make a deep copy.
 	 */
-	void SetParent(SG_Node *parent);
+	void AddChild(SG_Node *child);
 
+	/**
+	 * Remove a child node from this object. This just removes the child
+	 * pointer from the list of children - it does not destroy the child.
+	 * This does not inform the child that this node is no longer it's parent.
+	 * If the node was not a child of this object no action is performed.
+	 */
+	void RemoveChild(SG_Node *child);
 	/**
 	 * Return true if the node is the ancestor of child
 	 */
@@ -119,9 +147,14 @@ public:
 	SG_Node *GetParent() const;
 
 	/**
+	 * Set the parent of this node.
+	 */
+	void SetParent(SG_Node *parent);
+
+	/**
 	 * Return the top node in this node's Scene graph hierarchy
 	 */
-	SG_Node *GetRootSGParent();
+	const SG_Node *GetRootSGParent() const;
 
 	/**
 	 * Disconnect this node from it's parent
@@ -184,14 +217,26 @@ public:
 
 	SG_Callbacks& GetCallBackFunctions();
 
-	SG_Object *GetObject() const;
-	void SetObject(SG_Object *object);
+	/**
+	 * Get the client object associated with this
+	 * node. This interface allows you to associate
+	 * arbitrary external objects with this node. They are
+	 * passed to the callback functions when they are
+	 * activated so you can synchronize these external objects
+	 * upon replication and destruction
+	 * This may be nullptr.
+	 */
+	void *GetClientObject() const;
 
-	SG_Scene *GetScene() const;
-	void SetScene(SG_Scene *scene);
-
-	/// Change scene of this node and all its recursive children.
-	void ReplaceScene(SG_Scene *scene);
+	/**
+	 * Set the client object for this node. This is just a
+	 * pointer to an object allocated that should exist for
+	 * the duration of the lifetime of this object, or until
+	 * this function is called again.
+	 */
+	void SetClientObject(void *clientObject);
+	void *GetClientInfo() const;
+	void SetClientInfo(void *clientInfo);
 
 	void ClearModified();
 	void SetModified();
@@ -259,24 +304,11 @@ protected:
 	friend class KX_SlowParentRelation;
 	friend class KX_NormalParentRelation;
 
-	/**
-	 * Add a child to this object.
-	 * This just stores a pointer to the child and does not
-	 * make a deep copy.
-	 */
-	void AddChild(SG_Node *child);
-
-	/**
-	 * Remove a child node from this object. This just removes the child
-	 * pointer from the list of children - it does not destroy the child.
-	 * This does not inform the child that this node is no longer it's parent.
-	 * If the node was not a child of this object no action is performed.
-	 */
-	void RemoveChild(SG_Node *child);
-
+	bool ActivateReplicationCallback(SG_Node *replica);
+	void ActivateDestructionCallback();
 	void ActivateUpdateTransformCallback();
-
-	void Reschedule();
+	bool ActivateScheduleUpdateCallback();
+	void ActivateRecheduleUpdateCallback();
 
 	/**
 	 * Update the world coordinates of this spatial node.
@@ -286,16 +318,20 @@ protected:
 private:
 	void UpdateWorldDataThreadSchedule(bool parentUpdated = false);
 
-	/// The owned object of this node.
-	SG_Object *m_object;
-	/// The scene of this node.
-	SG_Scene *m_scene;
+	void ProcessSGReplica(SG_Node **replica);
 
+	void *m_clientObject;
+	void *m_clientInfo;
 	SG_Callbacks m_callbacks;
 
-	/// The list of children of this node.
+	/**
+	 * The list of children of this node.
+	 */
 	NodeList m_children;
-	/// The parent of this node may be nullptr.
+
+	/**
+	 * The parent of this node may be nullptr
+	 */
 	SG_Node *m_parent;
 
 	mt::vec3 m_localPosition;

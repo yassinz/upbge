@@ -30,7 +30,7 @@
 #include "KX_PythonComponentManager.h"
 #include "KX_KetsjiEngine.h" // For KX_DebugOption.
 
-#include "SG_Scene.h"
+#include "SG_Node.h"
 #include "SG_Frustum.h"
 #include "SCA_IScene.h"
 
@@ -78,7 +78,7 @@ class RAS_2DFilterManager;
 struct Scene;
 struct TaskPool;
 
-class KX_Scene : public EXP_Value, public SCA_IScene, public SG_Scene
+class KX_Scene : public EXP_Value, public SCA_IScene
 {
 public:
 	enum DrawingCallbackType {
@@ -132,6 +132,8 @@ private:
 	std::vector<KX_GameObject *> m_euthanasyobjects;
 
 	EXP_ListValue<KX_GameObject> *m_objectlist;
+	/// All 'root' parents.
+	EXP_ListValue<KX_GameObject> *m_parentlist;
 	EXP_ListValue<KX_LightObject> *m_lightlist;
 	/// All objects that are not in the active layer.
 	EXP_ListValue<KX_GameObject> *m_inactivelist;
@@ -142,6 +144,14 @@ private:
 	EXP_ListValue<KX_Camera> *m_cameralist;
 	/// The list of fonts for this scene.
 	EXP_ListValue<KX_FontObject> *m_fontlist;
+
+	/**
+	 * List of nodes that needs scenegraph update
+	 * the Dlist is not object that must be updated
+	 * the Qlist is for objects that needs to be rescheduled
+	 * for updates after udpate is over (slow parent, bone parent).
+	 */
+	SG_QList m_sghead;
 
 	/// Various SCA managers used by the scene
 	SCA_LogicManager *m_logicmgr;
@@ -250,6 +260,7 @@ public:
 	KX_Scene(SCA_IInputDevice *inputDevice,
 	         const std::string& scenename,
 	         Scene *scene,
+			 RAS_ICanvas *canvas,
 			 KX_NetworkMessageManager *messageManager);
 	virtual ~KX_Scene();
 
@@ -267,8 +278,11 @@ public:
 	/// Return list of texture renderer schedules.
 	std::vector<KX_TextureRenderSchedule> ScheduleTexturesRender(RAS_Rasterizer *rasty, const KX_SceneRenderSchedule& sceneData);
 
-	virtual SG_Object *ReplicateNodeObject(SG_Node *node, SG_Object *origObject);
-	virtual void DestructNodeObject(SG_Node *node, SG_Object *object);
+	/// Update all transforms according to the scenegraph.
+	static bool KX_ScenegraphUpdateFunc(SG_Node *node, void *gameobj, void *scene);
+	static bool KX_ScenegraphRescheduleFunc(SG_Node *node, void *gameobj, void *scene);
+	/// SceneGraph transformation update.
+	void UpdateParents();
 
 	void DupliGroupRecurse(KX_GameObject *groupobj, int level);
 	bool IsObjectInGroup(KX_GameObject *gameobj) const;
@@ -295,6 +309,7 @@ public:
 
 	EXP_ListValue<KX_GameObject> *GetObjectList() const;
 	EXP_ListValue<KX_GameObject> *GetInactiveList() const;
+	EXP_ListValue<KX_GameObject> *GetRootParentList() const;
 	EXP_ListValue<KX_LightObject> *GetLightList() const;
 	EXP_ListValue<KX_Camera> *GetCameraList() const;
 	EXP_ListValue<KX_FontObject> *GetFontList() const;

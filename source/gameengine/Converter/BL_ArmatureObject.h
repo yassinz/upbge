@@ -59,7 +59,10 @@ protected:
 	double m_lastapplyframe;
 
 public:
-	BL_ArmatureObject(Object *armature, Scene *scene);
+	BL_ArmatureObject(void *sgReplicationInfo,
+	                  SG_Callbacks callbacks,
+	                  Object *armature,
+	                  Scene *scene);
 	virtual ~BL_ArmatureObject();
 
 	virtual EXP_Value *GetReplica();

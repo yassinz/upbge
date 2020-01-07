@@ -28,8 +28,10 @@
 class KX_EmptyObject : public KX_GameObject
 {
 public:
-	KX_EmptyObject() = default;
-	virtual ~KX_EmptyObject() = default;
+	KX_EmptyObject(void* sgReplicationInfo,SG_Callbacks callbacks) :
+	KX_GameObject(sgReplicationInfo,callbacks) 
+	{};
+	virtual ~KX_EmptyObject();
 };
 
 #endif  /* __KX_EMPTYOBJECT_H__ */

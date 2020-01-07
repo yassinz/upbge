@@ -35,7 +35,7 @@
 #include "EXP_ListValue.h"
 #include "SCA_IObject.h"
 #include "SG_Node.h"
-#include "SG_Object.h"
+#include "SG_CullingNode.h"
 #include "mathfu.h"
 #include "KX_Scene.h"
 #include "KX_KetsjiEngine.h" /* for m_anim_framerate */
@@ -73,7 +73,7 @@ void KX_GameObject_Mathutils_Callback_Init(void);
 /**
  * KX_GameObject is the main class for dynamic objects.
  */
-class KX_GameObject : public SG_Object, public SCA_IObject, public mt::SimdClassAllocator
+class KX_GameObject : public SCA_IObject, public mt::SimdClassAllocator
 {
 	Py_Header
 public:
@@ -120,6 +120,9 @@ protected:
 
 	std::unique_ptr<PHY_IPhysicsController> m_physicsController;
 	std::unique_ptr<PHY_IGraphicController> m_graphicController;
+
+	SG_CullingNode m_cullingNode;
+	std::unique_ptr<SG_Node> m_sgNode;
 
 	EXP_ListValue<KX_PythonComponent> *m_components;
 
@@ -317,9 +320,20 @@ public:
 	 * End Animation API
 	 *********************************/
 
-	KX_GameObject();
+	/**
+	 * Construct a game object. This class also inherits the 
+	 * default constructors - use those with care!
+	 */
+	KX_GameObject(
+		void* sgReplicationInfo,
+		SG_Callbacks callbacks
+	);
+
 	KX_GameObject(const KX_GameObject& other);
-	virtual ~KX_GameObject();
+
+	virtual 
+	~KX_GameObject(
+	);
 
 	/** 
 	 * \section Stuff which is here due to poor design.
@@ -484,6 +498,20 @@ public:
 	const mt::vec3& NodeGetLocalPosition(  ) const;
 	mt::mat3x4 NodeGetLocalTransform() const;
 
+	/**
+	 * \section scene graph node accessor functions.
+	 */
+
+	SG_Node*	GetNode(	) 
+	{ 
+		return m_sgNode.get();
+	}
+
+	const 	SG_Node* GetNode(	) const
+	{ 
+		return m_sgNode.get();
+	}
+
 	Object *GetBlenderObject() const;
 
 	BL_ConvertObjectInfo *GetConvertObjectInfo() const;
@@ -497,6 +525,16 @@ public:
 				blenderobj->dup_group != nullptr) ? true : false;
 	}
 
+	/**
+	 * Set the Scene graph node for this game object.
+	 * warning - it is your responsibility to make sure
+	 * all controllers look at this new node. You must
+	 * also take care of the memory associated with the
+	 * old node. This class takes ownership of the new
+	 * node.
+	 */
+	void SetNode(SG_Node *node);
+	
 	/// Is it a dynamic/physics object ?
 	bool IsDynamic() const;
 
@@ -507,7 +545,7 @@ public:
 	 */
 	bool IsVertexParent( )
 	{
-		return (m_node && m_node->GetParent() && m_node->GetParent()->IsVertexParent());
+		return (m_sgNode && m_sgNode->GetParent() && m_sgNode->GetParent()->IsVertexParent());
 	}
 
 	/// \see KX_RayCast
@@ -581,14 +619,14 @@ public:
 	UpdateTransform(
 	);
 
-	static void UpdateTransformFunc(SG_Node* node, SG_Object *gameobj, SG_Scene *scene);
+	static void UpdateTransformFunc(SG_Node* node, void* gameobj, void* scene);
 
 	/**
 	 * only used for sensor objects
 	 */
 	void SynchronizeTransform();
 
-	static void SynchronizeTransformFunc(SG_Node* node, SG_Object *gameobj, SG_Scene *scene);
+	static void SynchronizeTransformFunc(SG_Node* node, void* gameobj, void* scene);
 
 	/**
 	 * \section Mesh accessor functions.
@@ -732,8 +770,10 @@ public:
 	 * and a valid graphic controller (if it exists).
 	 */
 	void UpdateBounds(bool force);
-	/// Update the graphic controller bounding box with the scene graph one.
-	void UpdateGraphicController();
+	void SetBoundsAabb(const mt::vec3 &aabbMin, const mt::vec3 &aabbMax);
+	void GetBoundsAabb(mt::vec3 &aabbMin, mt::vec3 &aabbMax) const;
+
+	SG_CullingNode& GetCullingNode();
 
 	ActivityCullingInfo& GetActivityCullingInfo();
 	void SetActivityCullingInfo(const ActivityCullingInfo& cullingInfo);
@@ -749,7 +789,7 @@ public:
 		bool
 	IsNegativeScaling(
 		void
-	) { return m_node->IsNegativeScaling(); }
+	) { return m_sgNode->IsNegativeScaling(); }
 
 	/**
 	 * \section Logic bubbling methods.

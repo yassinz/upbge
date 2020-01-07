@@ -56,7 +56,7 @@ public:
 		RM_MAX
 	};
 
-	KX_NavMeshObject();
+	KX_NavMeshObject(void *sgReplicationInfo, SG_Callbacks callbacks);
 	virtual ~KX_NavMeshObject();
 
 	virtual EXP_Value *GetReplica();

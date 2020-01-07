@@ -35,9 +35,10 @@ public:
 				// Update the object bounding volume box.
 				obj->UpdateBounds(false);
 
-				const bool culled = m_handler.Test(obj->NodeGetWorldTransform(), obj->NodeGetWorldScaling(), obj->GetAabb());
+				SG_CullingNode& node = obj->GetCullingNode();
+				const bool culled = m_handler.Test(obj->NodeGetWorldTransform(), obj->NodeGetWorldScaling(), node.GetAabb());
 
-				obj->SetCulled(culled);
+				node.SetCulled(culled);
 				if (!culled) {
 					m_activeObjects.push_back(obj);
 				}

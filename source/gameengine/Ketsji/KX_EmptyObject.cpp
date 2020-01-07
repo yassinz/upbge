@@ -23,3 +23,7 @@
 
 #include "KX_EmptyObject.h"
 
+KX_EmptyObject::~KX_EmptyObject()
+{
+
+}

@@ -30,9 +30,14 @@ class RAS_BoundingBox;
 
 class KX_FontObject : public KX_GameObject
 {
-	Py_Header
 public:
-	KX_FontObject(RAS_BoundingBoxManager *boundingBoxManager, Object *ob);
+	Py_Header
+	KX_FontObject(void *sgReplicationInfo,
+	              SG_Callbacks callbacks,
+	              RAS_Rasterizer *rasterizer,
+				  RAS_BoundingBoxManager *boundingBoxManager,
+	              Object *ob);
+
 	virtual ~KX_FontObject();
 
 	virtual void AddMeshUser();
