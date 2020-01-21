@@ -70,6 +70,7 @@ set(SRC
   intern/draw_select_buffer.c
   intern/draw_view.c
   engines/basic/basic_engine.c
+  engines/eevee/eevee_antialiasing.c
   engines/eevee/eevee_bloom.c
   engines/eevee/eevee_data.c
   engines/eevee/eevee_depth_of_field.c
@@ -176,6 +177,8 @@ set(LIB
 )
 
 data_to_c_simple(engines/eevee/shaders/ambient_occlusion_lib.glsl SRC)
+data_to_c_simple(engines/eevee/shaders/antialiasing_frag.glsl SRC)
+data_to_c_simple(engines/eevee/shaders/antialiasing_vert.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/default_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/default_world_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/background_vert.glsl SRC)

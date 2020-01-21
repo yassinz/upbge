@@ -254,9 +254,6 @@ typedef struct EEVEE_PassList {
   struct DRWPass *maxz_copydepth_ps;
   struct DRWPass *maxz_copydepth_layer_ps;
 
-  struct DRWPass *ghost_prepass_pass; /* Game engine transition */
-  struct DRWPass *ghost_resolve_pass; /* Game engine transition */
-
   struct DRWPass *depth_pass;
   struct DRWPass *depth_pass_cull;
   struct DRWPass *depth_pass_clip;
@@ -277,6 +274,13 @@ typedef struct EEVEE_PassList {
   struct DRWPass *lookdev_glossy_pass;
   struct DRWPass *lookdev_diffuse_pass;
   struct DRWPass *renderpass_pass;
+
+  /* Game engine transition */
+  struct DRWPass *ghost_prepass_pass;
+  struct DRWPass *ghost_resolve_pass;
+  struct DRWPass *smaa_edge_ps;
+  struct DRWPass *smaa_weight_ps;
+  struct DRWPass *smaa_resolve_ps;
 } EEVEE_PassList;
 
 typedef struct EEVEE_FramebufferList {
@@ -320,7 +324,10 @@ typedef struct EEVEE_FramebufferList {
   struct GPUFrameBuffer *taa_history_fb;
   struct GPUFrameBuffer *taa_history_color_fb;
 
-  struct GPUFrameBuffer *ghost_prepass_fb; /* Game engine transition */
+  /* Game engine transition */
+  struct GPUFrameBuffer *ghost_prepass_fb;
+  struct GPUFrameBuffer *smaa_edge_fb;
+  struct GPUFrameBuffer *smaa_weight_fb;
 } EEVEE_FramebufferList;
 
 typedef struct EEVEE_TextureList {
@@ -355,6 +362,11 @@ typedef struct EEVEE_TextureList {
   struct GPUTexture *color; /* R16_G16_B16 */
   struct GPUTexture *color_double_buffer;
   struct GPUTexture *depth_double_buffer;
+
+  /* Game engine transition */
+  /* Textures used by Antialiasing. */
+  struct GPUTexture *smaa_area_tx;
+  struct GPUTexture *smaa_search_tx;
 } EEVEE_TextureList;
 
 typedef struct EEVEE_StorageList {
@@ -822,6 +834,11 @@ typedef struct EEVEE_PrivateData {
   struct DRWView *world_views[6];
   /** For rendering planar reflections. */
   struct DRWView *planar_views[MAX_PLANAR];
+
+  /* Game engine transition */
+  /* Anti-Aliasing. */
+  GPUTexture *smaa_edge_tx;
+  GPUTexture *smaa_weight_tx;
 } EEVEE_PrivateData; /* Transient data */
 
 /* eevee_data.c */
@@ -1182,5 +1199,9 @@ static const float cubefacemat[6][4][4] = {
 
 /* Game engine transition */
 EEVEE_Data *EEVEE_engine_data_get(void);
+/** eevee_antialiasing.c */
+void EEVEE_antialiasing_init(struct EEVEE_Data *vedata);
+void EEVEE_antialiasing_draw(struct EEVEE_Data *vedata);
+void EEVEE_antialiasing_free(void);
 /* End of Game engine transition */
 #endif /* __EEVEE_PRIVATE_H__ */

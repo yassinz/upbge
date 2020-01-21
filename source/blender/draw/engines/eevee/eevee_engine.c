@@ -90,6 +90,7 @@ static void eevee_engine_init(void *ved)
   EEVEE_materials_init(sldata, stl, fbl);
   EEVEE_shadows_init(sldata);
   EEVEE_lightprobes_init(sldata, vedata);
+  EEVEE_antialiasing_init(vedata);
 }
 
 static void eevee_cache_init(void *vedata)
@@ -369,6 +370,10 @@ static void eevee_draw_background(void *vedata)
 
     /* Draw checkerboard with alpha under. */
     EEVEE_draw_alpha_checker(vedata);
+
+    /* Game engine transition */
+    EEVEE_antialiasing_draw(vedata);
+    /* End of Game engine transition */
   }
   else {
     EEVEE_renderpasses_draw(sldata, vedata);
@@ -517,6 +522,7 @@ static void eevee_render_to_image(void *vedata,
 static void eevee_engine_free(void)
 {
   EEVEE_shaders_free();
+  EEVEE_antialiasing_free();
   EEVEE_bloom_free();
   EEVEE_depth_of_field_free();
   EEVEE_effects_free();
