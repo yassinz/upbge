@@ -117,6 +117,7 @@ extern "C" {
 #include "DNA_windowmanager_types.h"
 #include "eevee_private.h"
 #include "DRW_render.h"
+    #include "WM_api.h"
 
 // TEST USE_VIEWPORT_RENDER
 #include "ED_screen.h"
@@ -293,6 +294,7 @@ KX_Scene::KX_Scene(SCA_IInputDevice *inputDevice,
       BKE_scene_get_depsgraph(
           KX_GetActiveEngine()->GetConverter()->GetMain(), scene, view_layer, true);
     }
+    RenderAfterCameraSetup(true);
   }
   /******************************************************************************************************************************/
 
@@ -439,7 +441,7 @@ void KX_Scene::InitBlenderContextVariables()
   wmWindowManager *wm = CTX_wm_manager(KX_GetActiveEngine()->GetContext());
   wmWindow *win;
   for (win = (wmWindow *)wm->windows.first; win; win = win->next) {
-    bScreen *screen = win->screen;
+    bScreen *screen = WM_window_get_active_screen(win);
     if (!screen) {
       continue;
     }
@@ -680,6 +682,8 @@ void KX_Scene::RenderAfterCameraSetupImageRender(RAS_Rasterizer *rasty, GPUViewp
   m.proj.getValue(&proj[0][0]);
   m.pers.getValue(&pers[0][0]);
   m.persinv.getValue(&persinv[0][0]);
+
+  InitBlenderContextVariables();
 
   DRW_game_render_loop(KX_GetActiveEngine()->GetContext(),
                                               viewport,
