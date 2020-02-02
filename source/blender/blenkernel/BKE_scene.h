@@ -260,6 +260,9 @@ void BKE_scene_cursor_from_mat4(struct View3DCursor *cursor,
  */
 void BKE_scene_eval_sequencer_sequences(struct Depsgraph *depsgraph, struct Scene *scene);
 
+struct SpaceType *BKE_scene_spacetype_from_id(int spaceid);
+struct ARegionType *BKE_scene_regiontype_from_id(struct SpaceType *st, int regionid);
+
 #ifdef __cplusplus
 }
 #endif

@@ -485,6 +485,13 @@ void KX_Scene::InitBlenderContextVariables()
               CTX_wm_area_set(C, sa);
               CTX_wm_region_set(C, ar);
               CTX_data_scene_set(C, scene);
+              SpaceType *st;
+              ARegionType *art;
+
+              st = BKE_scene_spacetype_from_id(SPACE_VIEW3D);
+              art = BKE_scene_regiontype_from_id(st, RGN_TYPE_WINDOW);
+              ar->type = art;
+              ar->regiontype = RGN_TYPE_WINDOW;
               win->scene = scene;
 
               return;
@@ -568,7 +575,9 @@ void KX_Scene::RenderAfterCameraSetup(bool calledFromConstructor)
   m.pers.getValue(&pers[0][0]);
   m.persinv.getValue(&persinv[0][0]);
 
-  ARegion *ar = canvas->GetARegion();
+  InitBlenderContextVariables();
+
+  ARegion *ar = CTX_wm_region(engine->GetContext());
 
   /* Ensure there is a valid ARegion *ar (this is not the case in blenderplayer)
    * Here we'll render directly the scene with viewport code.
@@ -589,6 +598,8 @@ void KX_Scene::RenderAfterCameraSetup(bool calledFromConstructor)
       BKE_scene_graph_update_tagged(depsgraph, bmain);
 
       ED_region_tag_redraw(ar);
+      ar->visible = true;
+      ar->do_draw = true;
       wm_draw_update(engine->GetContext());
       return;
     }

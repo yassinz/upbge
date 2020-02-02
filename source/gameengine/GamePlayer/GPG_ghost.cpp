@@ -1484,6 +1484,7 @@ int main(
 							}
 							/* wm context */
 							wmWindowManager * wm = (wmWindowManager *)CTX_data_main(C)->wm.first;
+							wm->message_bus = WM_msgbus_create();
 							CTX_wm_manager_set(C, wm);
 							WM_init_opengl_blenderplayer(G_MAIN, system);
 							wm_window_ghostwindow_blenderplayer_ensure(wm, (wmWindow *)wm->windows.first, window);
