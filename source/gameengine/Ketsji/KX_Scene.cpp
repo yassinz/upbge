@@ -111,6 +111,7 @@ extern "C" {
 #include "BKE_lib_id.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
+#include "BPY_extern.h"
 #include "depsgraph/DEG_depsgraph_query.h"
 #include "ED_view3d.h"
 #include "DNA_mesh_types.h"
@@ -445,8 +446,12 @@ void KX_Scene::ResetLastReplicatedParentObject()
 /*******************EEVEE INTEGRATION******************/
 void KX_Scene::InitBlenderContextVariables()
 {
+  Main *bmain = KX_GetActiveEngine()->GetConverter()->GetMain();
+  bContext *C = KX_GetActiveEngine()->GetContext();
+  CTX_data_main_set(C, bmain);
+  
   ARegion *ar;
-  wmWindowManager *wm = CTX_wm_manager(KX_GetActiveEngine()->GetContext());
+  wmWindowManager *wm = (wmWindowManager *)bmain->wm.first;
   wmWindow *win;
   for (win = (wmWindow *)wm->windows.first; win; win = win->next) {
     bScreen *screen = WM_window_get_active_screen(win);
@@ -461,25 +466,6 @@ void KX_Scene::InitBlenderContextVariables()
         for (ar = (ARegion *)regionbase->first; ar; ar = ar->next) {
           if (ar->regiontype == RGN_TYPE_WINDOW) {
             if (ar->regiondata) {
-              /* If we are in EMBEDDED and at FIRST SCENE START and that we have several
-               * viewports opened, there can be several SPACE_VIEW3D and corresponding ARegions.
-               * In this case we have to ensure that the ARegion set at embedded start
-               * (canvas->GetARegion()) is the same than the current ar. If not, we continue the
-               * loop. But if we ReplaceScene, We can't know which ARegion we have to choose, then
-               * we choose the first valid ARegion/SPACE_VIEW3D we find in the new scene. If no
-               * ARegion is set, then we are in blenderplayer. Then we choose the the first valid
-               * ARegion/SPACE_VIEW3D we find in the scene.
-               */
-              RAS_ICanvas *canvas = KX_GetActiveEngine()->GetCanvas();
-              bContext *C = KX_GetActiveEngine()->GetContext();
-              bool isStartScene = (GetBlenderScene() == canvas->GetStartScene());
-              /* In embedded, canvas->GetARegion will always return the first scene ARegion,
-               * but the bContext's ARegion will change if we replace scene.
-               */
-              ARegion *firstSceneAregion = canvas->GetARegion();
-              if (isStartScene && firstSceneAregion && firstSceneAregion != ar) {
-                continue;
-              }
               /* Here we try to set the valid scene ARegion, wmWindow, ScrArea...
                * This can be useful to have the correct settings when we do scripts
                * with bpy or this can also be useful for render when evil_C is used
@@ -496,6 +482,8 @@ void KX_Scene::InitBlenderContextVariables()
               CTX_wm_region_set(C, ar);
               CTX_data_scene_set(C, scene);
               win->scene = scene;
+
+              BPY_python_reset(C);
 
               /* Only if we are not in viewport render, modify + backup shading types */
               if ((scene->gm.flag & GAME_USE_VIEWPORT_RENDER) == 0) {
